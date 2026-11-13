@@ -46,7 +46,9 @@ class ClientJWTAuth(HttpBearer):
     def authenticate(self, request, token: str) -> Customer:
         payload = ClientTokenService.decode_access_token(token)
         try:
-            user = User.objects.select_related("customer_profile").get(pk=payload["sub"])
+            user = User.objects.select_related("customer_profile").get(
+                pk=payload["sub"]
+            )
         except User.DoesNotExist as exc:
             raise InvalidTokenError() from exc
 

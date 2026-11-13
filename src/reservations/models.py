@@ -8,9 +8,9 @@ from django.conf import settings
 from django.db import models
 
 from reservations.constants import (
+    RESERVATION_STATUS_CHOICES,
     RESERVATION_STATUS_ON_HOLD,
     RESERVATION_STATUS_REQUESTED,
-    RESERVATION_STATUS_CHOICES,
 )
 
 
