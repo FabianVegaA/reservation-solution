@@ -20,7 +20,9 @@ class Command(BaseCommand):
         change_permission = Permission.objects.get(codename="change_reservation")
         hold_permission = Permission.objects.get(codename="hold_reservation")
 
-        manager_group.permissions.set([view_permission, change_permission, hold_permission])
+        manager_group.permissions.set(
+            [view_permission, change_permission, hold_permission]
+        )
         operator_group.permissions.set([view_permission, change_permission])
 
         self._create_user(

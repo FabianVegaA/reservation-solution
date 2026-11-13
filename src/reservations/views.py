@@ -6,13 +6,16 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 
+from reservations.exceptions import ReservationStatusTransitionError
 from reservations.forms import ReservationUpdateForm
 from reservations.models import Reservation
 from reservations.services import ReservationLifecycleService, ReservationUpdateService
 from shared.mixins import AuthenticatedPermissionRequiredMixin
 
 
-class ReservationListView(LoginRequiredMixin, AuthenticatedPermissionRequiredMixin, View):
+class ReservationListView(
+    LoginRequiredMixin, AuthenticatedPermissionRequiredMixin, View
+):
     permission_required = "reservations.view_reservation"
 
     def get(self, request: HttpRequest) -> HttpResponse:
@@ -40,6 +43,7 @@ class ReservationDetailView(
             {
                 "reservation": reservation,
                 "can_change": request.user.has_perm("reservations.change_reservation"),
+                "can_hold": request.user.has_perm("reservations.hold_reservation"),
             },
         )
 
@@ -91,4 +95,40 @@ class ReservationConfirmView(
             actor_id=request.user.id,
         )
         messages.success(request, "Reserva confirmada.")
+        return redirect("reservation_detail", pk=pk)
+
+
+class ReservationHoldView(
+    LoginRequiredMixin, AuthenticatedPermissionRequiredMixin, View
+):
+    permission_required = "reservations.hold_reservation"
+
+    def post(self, request: HttpRequest, pk) -> HttpResponse:
+        try:
+            ReservationLifecycleService().place_reservation_on_hold(
+                reservation_id=pk,
+                actor_id=request.user.id,
+                reason=request.POST.get("hold_reason", ""),
+            )
+            messages.success(request, "Reserva puesta en espera.")
+
+        except ReservationLifecycleService.HoldReasonRequiredError:
+            messages.error(request, "Se requiere una razón para ponerla en espera.")
+        except ReservationStatusTransitionError:
+            messages.error(request, "La reserva ya no puede ponerse en espera.")
+
+        return redirect("reservation_detail", pk=pk)
+
+
+class ReservationReleaseView(
+    LoginRequiredMixin, AuthenticatedPermissionRequiredMixin, View
+):
+    permission_required = "reservations.hold_reservation"
+
+    def post(self, request: HttpRequest, pk) -> HttpResponse:
+        ReservationLifecycleService().release_reservation_from_hold(
+            reservation_id=pk,
+            actor_id=request.user.id,
+        )
+        messages.success(request, "Reserva liberada.")
         return redirect("reservation_detail", pk=pk)

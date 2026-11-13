@@ -6,6 +6,7 @@ from django.db import transaction
 
 from reservations.constants import (
     RESERVATION_STATUS_CONFIRMED,
+    RESERVATION_STATUS_ON_HOLD,
     RESERVATION_STATUS_REQUESTED,
 )
 from reservations.exceptions import (
@@ -45,35 +46,107 @@ class ReservationUpdateService:
         reservation.ends_at = ends_at
         reservation.internal_note = internal_note
         reservation.save(
-            update_fields=["room", "starts_at", "ends_at", "internal_note", "updated_at"]
+            update_fields=[
+                "room",
+                "starts_at",
+                "ends_at",
+                "internal_note",
+                "updated_at",
+            ]
         )
         return reservation
 
 
 class ReservationLifecycleService:
+    class HoldReasonRequiredError(ReservationStatusTransitionError):
+        detailed_message = (
+            "Reservation status transition is not allowed. "
+            "Hold reason must be provided when placing a reservation on hold."
+        )
+
     def __init__(self) -> None:
         self._query_service = ReservationQueryService()
 
-    @transaction.atomic
     def confirm_reservation(
         self,
         *,
         reservation_id: UUID,
         actor_id: int | None = None,
     ) -> Reservation:
-        _ = actor_id
-        try:
-            reservation = (
-                Reservation.objects.select_for_update()
-                .select_related("customer__user", "room")
-                .get(pk=reservation_id)
-            )
-        except Reservation.DoesNotExist as exc:
-            raise ReservationNotFoundError() from exc
+        with transaction.atomic():
+            _ = actor_id
+            try:
+                reservation = (
+                    Reservation.objects.select_for_update()
+                    .select_related("customer__user", "room")
+                    .get(pk=reservation_id)
+                )
+            except Reservation.DoesNotExist as exc:
+                raise ReservationNotFoundError() from exc
 
-        if reservation.status != RESERVATION_STATUS_REQUESTED:
-            raise ReservationStatusTransitionError()
+            if reservation.status != RESERVATION_STATUS_REQUESTED:
+                raise ReservationStatusTransitionError()
 
-        reservation.status = RESERVATION_STATUS_CONFIRMED
-        reservation.save(update_fields=["status", "updated_at"])
-        return reservation
+            reservation.status = RESERVATION_STATUS_CONFIRMED
+            reservation.save(update_fields=["status", "updated_at"])
+            return reservation
+
+    def place_reservation_on_hold(
+        self,
+        *,
+        reservation_id: UUID,
+        actor_id: int | None = None,
+        reason: str,
+    ) -> Reservation:
+        with transaction.atomic():
+            _ = actor_id
+            try:
+                reservation = (
+                    Reservation.objects.select_for_update()
+                    .select_related("customer__user", "room")
+                    .get(pk=reservation_id)
+                )
+            except Reservation.DoesNotExist as exc:
+                raise ReservationNotFoundError() from exc
+
+            if reservation.status != RESERVATION_STATUS_REQUESTED:
+                raise ReservationStatusTransitionError(
+                    current_status=reservation.status,
+                    target_status=RESERVATION_STATUS_ON_HOLD,
+                )
+
+            if not (clear_reason := reason.strip()):
+                raise ReservationLifecycleService.HoldReasonRequiredError()
+
+            reservation.status = RESERVATION_STATUS_ON_HOLD
+            reservation.hold_reason = clear_reason
+            reservation.save(update_fields=["status", "hold_reason", "updated_at"])
+            return reservation
+
+    def release_reservation_from_hold(
+        self,
+        *,
+        reservation_id: UUID,
+        actor_id: int | None = None,
+    ) -> Reservation:
+        with transaction.atomic():
+            _ = actor_id
+            try:
+                reservation = (
+                    Reservation.objects.select_for_update()
+                    .select_related("customer__user", "room")
+                    .get(pk=reservation_id)
+                )
+            except Reservation.DoesNotExist as exc:
+                raise ReservationNotFoundError() from exc
+
+            if reservation.status != RESERVATION_STATUS_ON_HOLD:
+                raise ReservationStatusTransitionError(
+                    current_status=reservation.status,
+                    target_status=RESERVATION_STATUS_REQUESTED,
+                )
+
+            reservation.status = RESERVATION_STATUS_REQUESTED
+            reservation.hold_reason = ""
+            reservation.save(update_fields=["status", "hold_reason", "updated_at"])
+            return reservation

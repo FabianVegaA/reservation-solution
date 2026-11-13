@@ -47,6 +47,11 @@
                     <strong>Motivo de cancelación</strong>
                     <span>{{ reservation.cancel_reason|default:"-" }}</span>
                 </div>
+                <div class="field">
+                    <strong>Motivo de espera</strong>
+                    <span>{{ reservation.hold_reason|default:"-" }}</span>
+                </div>
+
             </div>
         </div>
 
@@ -59,5 +64,43 @@
                 </form>
             </div>
         {% endif %}
+
+        {% if can_hold and reservation.status == "requested" %}
+            <div class="card">
+                <h3 style="margin-top:0;">Poner reserva en espera</h3>
+                <form class="stack" method="post" action="{% url 'reservation_hold' reservation.id %}">
+                    {% csrf_token %}
+                    <div class="field">
+                        <label for="hold_reason">Motivo de espera</label>
+                        <textarea
+                            id="hold_reason"
+                            name="hold_reason"
+                            rows="3"
+                            placeholder="Explica brevemente el motivo"
+                            required
+                        ></textarea>
+                    </div>
+                    <div>
+                        <button class="btn btn-primary" type="submit">Poner en espera</button>
+                    </div>
+                </form>
+            </div>
+        {% endif %}
+
+        {% if can_hold and reservation.status == "on_hold" %}
+            <div class="card">
+                <h3>Reserva en espera</h3>
+                <div class="card">
+                    <h3 style="margin-top:0;">Reserva en espera</h3>
+                    <p>Al sacar la reserva de espera, volverá al estado solicitada.</p>
+                    <form method="post" action="{% url 'reservation_release' reservation.id %}">
+                        {% csrf_token %}
+                        <button class="btn btn-primary" type="submit">Sacar de espera</button>
+                    </form>
+                </div>
+
+            </div>
+        {% endif %}
+
     </div>
 {% endblock %}

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
+from typing import ClassVar
 
 from django.conf import settings
 from django.db import models
 
 from reservations.constants import (
-    RESERVATION_STATUS_CHOICES,
+    RESERVATION_STATUS_ON_HOLD,
     RESERVATION_STATUS_REQUESTED,
+    RESERVATION_STATUS_CHOICES,
 )
 
 
@@ -54,15 +57,23 @@ class Reservation(models.Model):
     starts_at = models.DateTimeField()
     ends_at = models.DateTimeField()
     internal_note = models.TextField(blank=True)
+    hold_reason = models.TextField(blank=True)
     cancel_reason = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ("starts_at",)
-        permissions = (
-            ("hold_reservation", "Can put reservation on hold"),
-        )
+        permissions = (("hold_reservation", "Can put reservation on hold"),)
+        constraints: ClassVar[Sequence[models.BaseConstraint]] = [
+            models.CheckConstraint(
+                condition=(
+                    ~models.Q(status=RESERVATION_STATUS_ON_HOLD)
+                    | ~models.Q(hold_reason="")
+                ),
+                name="reservation_on_hold_requires_reason",
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"{self.customer} · {self.room} · {self.starts_at:%Y-%m-%d %H:%M}"

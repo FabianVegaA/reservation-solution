@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from django import forms
 
 from reservations.models import Reservation
@@ -7,7 +9,7 @@ class ReservationUpdateForm(forms.ModelForm):
     class Meta:
         model = Reservation
         fields = ("room", "starts_at", "ends_at", "internal_note")
-        widgets = {
+        widgets: ClassVar[dict[str, forms.Widget]] = {
             "starts_at": forms.DateTimeInput(
                 format="%Y-%m-%dT%H:%M",
                 attrs={"type": "datetime-local"},
