@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ProblemDetailSchema(BaseModel):
@@ -25,7 +25,7 @@ class ProblemDetailSchema(BaseModel):
         title: str,
         detail: str,
         errors: list[dict] | None = None,
-    ) -> "ProblemDetailSchema":
+    ) -> ProblemDetailSchema:
         return cls(
             type=f"urn:assessment:problem:{code}",
             title=title,
@@ -60,3 +60,14 @@ class ReservationListItem(BaseModel):
     starts_at: datetime
     ends_at: datetime
     cancel_reason: str | None = None
+
+
+class CancelReservationRequest(BaseModel):
+    reason: str = Field(..., min_length=1, max_length=255)
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def normalize_reason(cls, value):
+        if isinstance(value, str):
+            return value.strip()
+        return value

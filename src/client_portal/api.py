@@ -4,6 +4,7 @@ from ninja import NinjaAPI, Router
 from ninja.responses import Status
 
 from client_portal.schemas import (
+    CancelReservationRequest,
     ClientProfileSchema,
     LoginRequest,
     ProblemDetailSchema,
@@ -11,7 +12,10 @@ from client_portal.schemas import (
     TokenResponse,
 )
 from client_portal.security import ClientJWTAuth, ClientTokenService
-from client_portal.services import ClientPortalAuthService, ClientReservationQueryService
+from client_portal.services import (
+    ClientPortalAuthService,
+    ClientReservationQueryService,
+)
 from shared.errors import AppError
 
 api = NinjaAPI(title="Assessment Client API", version="1.0.0")
@@ -80,6 +84,20 @@ def list_reservations(request):
         )
         for reservation in reservations
     ]
+
+
+@reservation_router.post(
+    "/{reservation_id}/cancel",
+    response={200: None, 400: ProblemDetailSchema},
+    auth=client_auth,
+)
+def cancel_reservation(request, reservation_id: str, payload: CancelReservationRequest):
+    ClientReservationQueryService().cancel_reservation(
+        customer_id=request.auth.id,
+        reservation_id=reservation_id,
+        cancel_reason=payload.reason,
+    )
+    return Status(200, None)
 
 
 api.add_router("/auth/", auth_router)

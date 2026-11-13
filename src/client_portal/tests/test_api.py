@@ -1,7 +1,15 @@
 import pytest
 
 from client_portal.security import ClientTokenService
-from reservations.tests.factories import CustomerFactory, ReservationFactory, UserFactory
+from reservations.constants import (
+    RESERVATION_STATUS_CANCELLED,
+    RESERVATION_STATUS_REQUESTED,
+)
+from reservations.tests.factories import (
+    CustomerFactory,
+    ReservationFactory,
+    UserFactory,
+)
 
 
 @pytest.mark.django_db
@@ -50,3 +58,39 @@ def test_reservation_list_is_scoped_to_customer(client):
     payload = response.json()
     assert len(payload) == 1
     assert payload[0]["id"] == str(own_reservation.id)
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("owner", "status", "reason", "expected_status"),
+    [
+        (True, RESERVATION_STATUS_REQUESTED, "Cambio de planes", 200),
+        (False, RESERVATION_STATUS_REQUESTED, "Cambio de planes", 400),
+        (True, RESERVATION_STATUS_CANCELLED, "Cambio de planes", 400),
+        (True, RESERVATION_STATUS_REQUESTED, "   ", 422),
+    ],
+)
+def test_cancel_reservation(client, owner, status, reason, expected_status):
+    customer = CustomerFactory()
+    reservation_customer = customer if owner else CustomerFactory()
+    reservation = ReservationFactory(
+        customer=reservation_customer,
+        status=status,
+    )
+    token = ClientTokenService.issue_access_token(customer=customer)
+
+    response = client.post(
+        f"/api/v1/reservations/{reservation.id}/cancel",
+        data={"reason": reason},
+        content_type="application/json",
+        HTTP_AUTHORIZATION=f"Bearer {token}",
+    )
+
+    assert response.status_code == expected_status
+    reservation.refresh_from_db()
+
+    if expected_status == 200:
+        assert reservation.status == RESERVATION_STATUS_CANCELLED
+        assert reservation.cancel_reason == reason
+    else:
+        assert reservation.status == status
