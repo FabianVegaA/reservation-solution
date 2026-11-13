@@ -1,5 +1,15 @@
 # Prueba técnica full stack: backoffice + API cliente
 
+En este repositorio se encuentra la resolución de la prueba técnica full stack.
+
+> **Nota**: Se declara haber utilizado herramientas externas de IA especificamente Codex con el modelo 6 Atras, principalmente para apoyo en la generación de código y sugerencias. 
+
+Se enlazan los archivos de decisiones, evaluación y dockerización:
+
+- [DECISIONS.md](./DECISIONS.md)
+- [DOCKER.md](./DOCKER.md)
+---
+
 Starter repo para evaluar criterio full stack con foco principal en Django.
 
 ## Stack
